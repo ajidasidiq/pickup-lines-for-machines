@@ -30,6 +30,24 @@ def validate(line: str) -> str:
     return line
 
 
+def verify_bytes(path: str, line: str) -> None:
+    """Byte-level round-trip check: the file on disk must be exactly
+    the validated line encoded as UTF-8 — no trailing newline or CR,
+    no embedded newline or CR, no BOM, no re-encoding drift."""
+    expected = line.encode("utf-8")
+    with open(path, "rb") as f:
+        raw = f.read()
+    if raw != expected:
+        raise RuntimeError(
+            f"entry.txt bytes differ from validated line: "
+            f"got {len(raw)} bytes, expected {len(expected)}"
+        )
+    if raw.endswith(b"\n") or raw.endswith(b"\r"):
+        raise RuntimeError("entry.txt must not end with a newline")
+    if b"\n" in raw or b"\r" in raw:
+        raise RuntimeError("entry.txt must contain no newline bytes")
+
+
 def main() -> int:
     line = validate(LINE)
     out_dir = os.environ.get("OUTPUT_DIR", "/output")
@@ -41,6 +59,9 @@ def main() -> int:
         written = f.read()
     if written != line:
         raise RuntimeError("entry.txt does not match the validated line")
+    # Byte-level round trip: the file on disk must be exactly the
+    # validated line as UTF-8 bytes, with no trailing newline.
+    verify_bytes(out_path, line)
     print(f"Wrote {len(line)} characters to {out_path}")
     print(line)
     return 0
